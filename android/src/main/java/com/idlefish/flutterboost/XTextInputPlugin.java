@@ -78,6 +78,9 @@ public class XTextInputPlugin {
         if(mView!=null && mView.hashCode()==v.hashCode()){
             mView= null;
         }
+        if (lastInputConnection != null){
+            lastInputConnection = null;
+        }
     }
 
     public  void updateView(final View view){
