@@ -75,6 +75,7 @@ public class XTextInputPlugin {
 
 
     public void  release(View v){
+        textInputChannel.setTextInputMethodHandler(null);
         if(mView!=null && mView.hashCode()==v.hashCode()){
             mView= null;
         }
