@@ -31,7 +31,6 @@ import io.flutter.plugin.platform.PlatformViewsController;
  * Android implementation of the text input plugin.
  */
 public class XTextInputPlugin {
-    @NonNull
     private  View mView;
     @NonNull
     private  InputMethodManager mImm;
@@ -81,43 +80,42 @@ public class XTextInputPlugin {
         }
     }
 
-    public  void updateView(View view){
-        mView = view;
+    public  void updateView(final View view){
         mImm = (InputMethodManager) view.getContext().getSystemService(
                 Context.INPUT_METHOD_SERVICE);
 
         textInputChannel.setTextInputMethodHandler(new TextInputChannel.TextInputMethodHandler() {
             @Override
             public void show() {
-                showTextInput(mView);
+                showTextInput(view);
             }
 
             @Override
             public void hide() {
-                hideTextInput(mView);
+                hideTextInput(view);
             }
 
             @Override
             public void setClient(int textInputClientId, TextInputChannel.Configuration configuration) {
-                setTextInputClient(textInputClientId, configuration);
+                setTextInputClient(textInputClientId, configuration,view);
             }
 
             @Override
             public void setPlatformViewClient(int platformViewId) {
-                setPlatformViewTextInputClient(platformViewId);
+                setPlatformViewTextInputClient(platformViewId,view);
             }
 
             @Override
             public void setEditingState(TextInputChannel.TextEditState editingState) {
-                setTextInputEditingState(mView, editingState);
+                setTextInputEditingState(view, editingState);
             }
 
             @Override
             public void clearClient() {
-                clearTextInputClient();
+                clearTextInputClient(view);
             }
         });
-        restartAlwaysRequired = isRestartAlwaysRequired();
+        restartAlwaysRequired = isRestartAlwaysRequired(view);
 
     }
 
@@ -300,7 +298,7 @@ public class XTextInputPlugin {
     }
 
     @VisibleForTesting
-    void setTextInputClient(int client, TextInputChannel.Configuration configuration) {
+    void setTextInputClient(int client, TextInputChannel.Configuration configuration, View mView) {
         inputTarget = new InputTarget(InputTarget.Type.FRAMEWORK_CLIENT, client);
         this.configuration = configuration;
         mEditable = Editable.Factory.getInstance().newEditable("");
@@ -311,13 +309,13 @@ public class XTextInputPlugin {
         unlockPlatformViewInputConnection();
     }
 
-    private void setPlatformViewTextInputClient(int platformViewId) {
+    private void setPlatformViewTextInputClient(int platformViewId, View view) {
         // We need to make sure that the Flutter view is focused so that no imm operations get short circuited.
         // Not asking for focus here specifically manifested in a but on API 28 devices where the platform view's
         // request to show a keyboard was ignored.
-        mView.requestFocus();
+        view.requestFocus();
         inputTarget = new InputTarget(InputTarget.Type.PLATFORM_VIEW, platformViewId);
-        mImm.restartInput(mView);
+        mImm.restartInput(view);
         mRestartInputPending = false;
     }
 
@@ -335,7 +333,7 @@ public class XTextInputPlugin {
     @VisibleForTesting void setTextInputEditingState(View view, TextInputChannel.TextEditState state) {
         if (!restartAlwaysRequired && !mRestartInputPending && state.text.equals(mEditable.toString())) {
             applyStateToSelection(state);
-            mImm.updateSelection(mView, Math.max(Selection.getSelectionStart(mEditable), 0),
+            mImm.updateSelection(view, Math.max(Selection.getSelectionStart(mEditable), 0),
                     Math.max(Selection.getSelectionEnd(mEditable), 0),
                     BaseInputConnection.getComposingSpanStart(mEditable),
                     BaseInputConnection.getComposingSpanEnd(mEditable));
@@ -357,13 +355,13 @@ public class XTextInputPlugin {
     // negative performance implications, so we don't want to apply this workaround in every case.
     @SuppressLint("NewApi") // New API guard is inline, the linter can't see it.
     @SuppressWarnings("deprecation")
-    private boolean isRestartAlwaysRequired() {
+    private boolean isRestartAlwaysRequired(View view) {
         InputMethodSubtype subtype = mImm.getCurrentInputMethodSubtype();
         // Impacted devices all shipped with Android Lollipop or newer.
         if (subtype == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP || !Build.MANUFACTURER.equals("samsung")) {
             return false;
         }
-        String keyboardName = Settings.Secure.getString(mView.getContext().getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD);
+        String keyboardName = Settings.Secure.getString(view.getContext().getContentResolver(), Settings.Secure.DEFAULT_INPUT_METHOD);
         // The Samsung keyboard is called "com.sec.android.inputmethod/.SamsungKeypad" but look
         // for "Samsung" just in case Samsung changes the name of the keyboard.
         if(keyboardName==null) return  false;
@@ -371,7 +369,7 @@ public class XTextInputPlugin {
         return keyboardName.contains("Samsung");
     }
 
-    private void clearTextInputClient() {
+    private void clearTextInputClient(View view) {
         if (inputTarget.type == InputTarget.Type.PLATFORM_VIEW) {
             // Focus changes in the framework tree have no guarantees on the order focus nodes are notified. A node
             // that lost focus may be notified before or after a node that gained focus.
